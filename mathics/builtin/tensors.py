@@ -1,13 +1,26 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """
-Tensor functions
+Tensors
+
+In mathematics, a tensor is an algebraic object that describes a (multilinear) relationship between sets of algebraic objects related to a vector space. Objects that tensors may map between include vectors and scalars, and even other tensors.
+
+There are many types of tensors, including scalars and vectors (which are the simplest tensors), dual vectors, multilinear maps between vector spaces, and even some operations such as the dot product. Tensors are defined independent of any basis, although they are often referred to by their components in a basis related to a particular coordinate system.
+
+Mathics represents tensors of vectors and matrices as lists; tensors of any rank can be handled.
 """
 
+from mathics.version import __version__  # noqa used in loading to check consistency.
 
 from mathics.builtin.base import Builtin, BinaryOperator
-from mathics.core.expression import Expression, Symbol, Integer, String
+from mathics.core.expression import (
+    Expression,
+    Integer,
+    Integer0,
+    String,
+    SymbolTrue,
+    SymbolFalse,
+)
 from mathics.core.rules import Pattern
 
 from mathics.builtin.lists import get_part
@@ -16,12 +29,14 @@ from mathics.builtin.lists import get_part
 class ArrayQ(Builtin):
     """
     <dl>
-    <dt>'ArrayQ[$expr$]'
-        <dd>tests whether $expr$ is a full array.
-    <dt>'ArrayQ[$expr$, $pattern$]'
-        <dd>also tests whether the array depth of $expr$ matches $pattern$.
-    <dt>'ArrayQ[$expr$, $pattern$, $test$]'</dt>
-        <dd>furthermore tests whether $test$ yields 'True' for all elements of $expr$.
+      <dt>'ArrayQ[$expr$]'
+      <dd>tests whether $expr$ is a full array.
+
+      <dt>'ArrayQ[$expr$, $pattern$]'
+      <dd>also tests whether the array depth of $expr$ matches $pattern$.
+
+      <dt>'ArrayQ[$expr$, $pattern$, $test$]'</dt>
+      <dd>furthermore tests whether $test$ yields 'True' for all elements of $expr$.
         'ArrayQ[$expr$]' is equivalent to 'ArrayQ[$expr$, _, True&]'.
     </dl>
 
@@ -36,21 +51,21 @@ class ArrayQ(Builtin):
     """
 
     rules = {
-        'ArrayQ[expr_]': 'ArrayQ[expr, _, True&]',
-        'ArrayQ[expr_, pattern_]': 'ArrayQ[expr, pattern, True&]',
+        "ArrayQ[expr_]": "ArrayQ[expr, _, True&]",
+        "ArrayQ[expr_, pattern_]": "ArrayQ[expr, pattern, True&]",
     }
 
     def apply(self, expr, pattern, test, evaluation):
-        'ArrayQ[expr_, pattern_, test_]'
+        "ArrayQ[expr_, pattern_, test_]"
 
         pattern = Pattern.create(pattern)
 
         dims = [len(expr.get_leaves())]  # to ensure an atom is not an array
 
         def check(level, expr):
-            if not expr.has_form('List', None):
+            if not expr.has_form("List", None):
                 test_expr = Expression(test, expr)
-                if test_expr.evaluate(evaluation) != Symbol('True'):
+                if test_expr.evaluate(evaluation) != SymbolTrue:
                     return False
                 level_dim = None
             else:
@@ -68,12 +83,12 @@ class ArrayQ(Builtin):
             return True
 
         if not check(0, expr):
-            return Symbol('False')
+            return SymbolFalse
 
         depth = len(dims) - 1  # None doesn't count
         if not pattern.does_match(Integer(depth), evaluation):
-            return Symbol('False')
-        return Symbol('True')
+            return SymbolFalse
+        return SymbolTrue
 
 
 class VectorQ(Builtin):
@@ -92,8 +107,8 @@ class VectorQ(Builtin):
     """
 
     rules = {
-        'VectorQ[expr_]': 'ArrayQ[expr, 1]',
-        'VectorQ[expr_, test_]': 'ArrayQ[expr, 1, test]',
+        "VectorQ[expr_]": "ArrayQ[expr, 1]",
+        "VectorQ[expr_, test_]": "ArrayQ[expr, 1, test]",
     }
 
 
@@ -112,8 +127,8 @@ class MatrixQ(Builtin):
     """
 
     rules = {
-        'MatrixQ[expr_]': 'ArrayQ[expr, 2]',
-        'MatrixQ[expr_, test_]': 'ArrayQ[expr, 2, test]',
+        "MatrixQ[expr_]": "ArrayQ[expr, 2]",
+        "MatrixQ[expr_, test_]": "ArrayQ[expr, 2, test]",
     }
 
 
@@ -121,7 +136,7 @@ def get_dimensions(expr, head=None):
     if expr.is_atom():
         return []
     else:
-        if head is not None and not expr.head.same(head):
+        if head is not None and not expr.head.sameQ(head):
             return []
         sub_dim = None
         sub = []
@@ -166,10 +181,9 @@ class Dimensions(Builtin):
     """
 
     def apply(self, expr, evaluation):
-        'Dimensions[expr_]'
+        "Dimensions[expr_]"
 
-        return Expression('List', *[
-            Integer(dim) for dim in get_dimensions(expr)])
+        return Expression("List", *[Integer(dim) for dim in get_dimensions(expr)])
 
 
 class ArrayDepth(Builtin):
@@ -187,7 +201,7 @@ class ArrayDepth(Builtin):
     """
 
     rules = {
-        'ArrayDepth[list_]': 'Length[Dimensions[list]]',
+        "ArrayDepth[list_]": "Length[Dimensions[list]]",
     }
 
 
@@ -212,12 +226,12 @@ class Dot(BinaryOperator):
      = a . b
     """
 
-    operator = '.'
+    operator = "."
     precedence = 490
-    attributes = ('Flat', 'OneIdentity')
+    attributes = ("Flat", "OneIdentity")
 
     rules = {
-        'Dot[a_List, b_List]': 'Inner[Times, a, b, Plus]',
+        "Dot[a_List, b_List]": "Inner[Times, a, b, Plus]",
     }
 
 
@@ -255,54 +269,55 @@ class Inner(Builtin):
     """
 
     rules = {
-        'Inner[f_, list1_, list2_]': 'Inner[f, list1, list2, Plus]',
+        "Inner[f_, list1_, list2_]": "Inner[f, list1, list2, Plus]",
     }
 
     messages = {
-        'incom': ("Length `1` of dimension `2` in `3` is incommensurate with "
-                  "length `4` of dimension 1 in `5."),
+        "incom": (
+            "Length `1` of dimension `2` in `3` is incommensurate with "
+            "length `4` of dimension 1 in `5."
+        ),
     }
 
     def apply(self, f, list1, list2, g, evaluation):
-        'Inner[f_, list1_, list2_, g_]'
+        "Inner[f_, list1_, list2_, g_]"
 
         m = get_dimensions(list1)
         n = get_dimensions(list2)
 
         if not m or not n:
-            evaluation.message('Inner', 'normal')
+            evaluation.message("Inner", "normal")
             return
-        if list1.head != list2.head:
-            evaluation.message('Inner', 'heads', list1.head, list2.head)
+        if list1.get_head() != list2.get_head():
+            evaluation.message("Inner", "heads", list1.get_head(), list2.get_head())
             return
         if m[-1] != n[0]:
-            evaluation.message(
-                'Inner', 'incom', m[-1], len(m), list1, n[0], list2)
+            evaluation.message("Inner", "incom", m[-1], len(m), list1, n[0], list2)
             return
 
-        head = list1.head
+        head = list1.get_head()
         inner_dim = n[0]
 
         def rec(i_cur, j_cur, i_rest, j_rest):
             evaluation.check_stopped()
             if i_rest:
-                new = Expression(head)
+                leaves = []
                 for i in range(1, i_rest[0] + 1):
-                    new.leaves.append(
-                        rec(i_cur + [i], j_cur, i_rest[1:], j_rest))
-                return new
+                    leaves.append(rec(i_cur + [i], j_cur, i_rest[1:], j_rest))
+                return Expression(head, *leaves)
             elif j_rest:
-                new = Expression(head)
+                leaves = []
                 for j in range(1, j_rest[0] + 1):
-                    new.leaves.append(
-                        rec(i_cur, j_cur + [j], i_rest, j_rest[1:]))
-                return new
+                    leaves.append(rec(i_cur, j_cur + [j], i_rest, j_rest[1:]))
+                return Expression(head, *leaves)
             else:
+
                 def summand(i):
-                    return Expression(f, get_part(list1, i_cur + [i]),
-                                      get_part(list2, [i] + j_cur))
-                part = Expression(
-                    g, *[summand(i) for i in range(1, inner_dim + 1)])
+                    part1 = get_part(list1, i_cur + [i])
+                    part2 = get_part(list2, [i] + j_cur)
+                    return Expression(f, part1, part2)
+
+                part = Expression(g, *[summand(i) for i in range(1, inner_dim + 1)])
                 # cur_expr.leaves.append(part)
                 return part
 
@@ -345,23 +360,23 @@ class Outer(Builtin):
     """
 
     def apply(self, f, lists, evaluation):
-        'Outer[f_, lists__]'
+        "Outer[f_, lists__]"
 
         lists = lists.get_sequence()
         head = None
         for list in lists:
             if list.is_atom():
-                evaluation.message('Outer', 'normal')
+                evaluation.message("Outer", "normal")
                 return
             if head is None:
                 head = list.head
-            elif not list.head.same(head):
-                evaluation.message('Outer', 'heads', head, list.head)
+            elif not list.head.sameQ(head):
+                evaluation.message("Outer", "heads", head, list.head)
                 return
 
         def rec(item, rest_lists, current):
             evaluation.check_stopped()
-            if item.is_atom() or not item.head.same(head):
+            if item.is_atom() or not item.head.sameQ(head):
                 if rest_lists:
                     return rec(rest_lists[0], rest_lists[1:], current + [item])
                 else:
@@ -396,7 +411,7 @@ class Transpose(Builtin):
     """
 
     def apply(self, m, evaluation):
-        'Transpose[m_?MatrixQ]'
+        "Transpose[m_?MatrixQ]"
 
         result = []
         for row_index, row in enumerate(m.leaves):
@@ -405,8 +420,7 @@ class Transpose(Builtin):
                     result.append([item])
                 else:
                     result[col_index].append(item)
-        return Expression('List', *[Expression('List', *row)
-                                    for row in result])
+        return Expression("List", *[Expression("List", *row) for row in result])
 
 
 class DiagonalMatrix(Builtin):
@@ -430,15 +444,15 @@ class DiagonalMatrix(Builtin):
     """
 
     def apply(self, list, evaluation):
-        'DiagonalMatrix[list_List]'
+        "DiagonalMatrix[list_List]"
 
         result = []
         n = len(list.leaves)
         for index, item in enumerate(list.leaves):
-            row = [Integer(0)] * n
+            row = [Integer0] * n
             row[index] = item
-            result.append(Expression('List', *row))
-        return Expression('List', *result)
+            result.append(Expression("List", *row))
+        return Expression("List", *result)
 
 
 class IdentityMatrix(Builtin):
@@ -453,14 +467,14 @@ class IdentityMatrix(Builtin):
     """
 
     rules = {
-        'IdentityMatrix[n_Integer]': 'DiagonalMatrix[Table[1, {n}]]',
+        "IdentityMatrix[n_Integer]": "DiagonalMatrix[Table[1, {n}]]",
     }
 
 
 def get_default_distance(p):
     if all(q.is_numeric() for q in p):
-        return 'SquaredEuclideanDistance'
-    elif all(q.get_head_name() == 'System`List' for q in p):
+        return "SquaredEuclideanDistance"
+    elif all(q.get_head_name() == "System`List" for q in p):
         dimensions = [get_dimensions(q) for q in p]
         if len(dimensions) < 1:
             return None
@@ -468,16 +482,22 @@ def get_default_distance(p):
         if not all(d == d0 for d in dimensions[1:]):
             return None
         if len(dimensions[0]) == 1:  # vectors?
+
             def is_boolean(x):
-                return x.get_head_name() == 'System`Symbol' and x.get_name() in ('System`True', 'System`False')
+                return x.get_head_name() == "System`Symbol" and x in (
+                    SymbolTrue,
+                    SymbolFalse,
+                )
+
             if all(all(is_boolean(e) for e in q.leaves) for q in p):
-                return 'JaccardDissimilarity'
-        return 'SquaredEuclideanDistance'
+                return "JaccardDissimilarity"
+        return "SquaredEuclideanDistance"
     elif all(isinstance(q, String) for q in p):
-        return 'EditDistance'
+        return "EditDistance"
     else:
-        from mathics.builtin.graphics import expression_to_color
+        from mathics.builtin.colors.color_directives import expression_to_color
+
         if all(expression_to_color(q) is not None for q in p):
-            return 'ColorDistance'
+            return "ColorDistance"
 
         return None

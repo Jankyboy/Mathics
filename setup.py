@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Setuptools based setup script for Mathics.
+"""Python Setuptools for Mathics core
 
-For the easiest installation just type the following command (you'll probably
-need root privileges):
+For the easiest installation:
 
-    python setup.py install
+    pip install -e .
 
 This will install the library in the default location. For instructions on
 how to customize the install procedure read the output of:
@@ -21,26 +20,55 @@ To get a full list of avaiable commands, read the output of:
 
     python setup.py --help-commands
 
-Or, if all else fails, feel free to write to the mathics users list at
-mathics-users@googlegroups.com and ask for help.
 """
 
+import re
 import sys
+import os.path as osp
 import platform
-from setuptools import setup, Command, Extension
+from setuptools import setup, Extension
 
 # Ensure user has the correct Python version
 if sys.version_info < (3, 6):
     print("Mathics does not support Python %d.%d" % sys.version_info[:2])
     sys.exit(-1)
 
+
+def get_srcdir():
+    filename = osp.normcase(osp.dirname(osp.abspath(__file__)))
+    return osp.realpath(filename)
+
+
+def read(*rnames):
+    return open(osp.join(get_srcdir(), *rnames)).read()
+
+
 # stores __version__ in the current namespace
 exec(compile(open("mathics/version.py").read(), "mathics/version.py", "exec"))
 
+long_description = read("README.rst") + "\n"
+
+
 is_PyPy = platform.python_implementation() == "PyPy"
 
-INSTALL_REQUIRES = []
+INSTALL_REQUIRES = ["Mathics-Scanner >= 1.2.1,<1.3.0"]
+
+# stores __version__ in the current namespace
+exec(compile(open("mathics/version.py").read(), "mathics/version.py", "exec"))
+
+EXTRAS_REQUIRE = {}
+for kind in ("dev", "full"):
+    extras_require = []
+    requirements_file = f"requirements-{kind}.txt"
+    for line in open(requirements_file).read().split("\n"):
+        if line and not line.startswith("#"):
+            requires = re.sub(r"([^#]+)(\s*#.*$)?", r"\1", line)
+            extras_require.append(requires)
+    EXTRAS_REQUIRE[kind] = extras_require
+
 DEPENDENCY_LINKS = []
+#     "http://github.com/Mathics3/mathics-scanner/tarball/master#egg=Mathics_Scanner-1.0.0.dev"
+# ]
 
 try:
     if is_PyPy:
@@ -50,35 +78,42 @@ except ImportError:
     EXTENSIONS = []
     CMDCLASS = {}
 else:
-    EXTENSIONS = {
-        "core": ["expression", "numbers", "rules", "pattern"],
+    EXTENSIONS_DICT = {
+        "core": ("expression", "numbers", "rules", "pattern"),
         "builtin": ["arithmetic", "numeric", "patterns", "graphics"],
     }
     EXTENSIONS = [
         Extension(
             "mathics.%s.%s" % (parent, module), ["mathics/%s/%s.py" % (parent, module)]
         )
-        for parent, modules in EXTENSIONS.items()
+        for parent, modules in EXTENSIONS_DICT.items()
         for module in modules
     ]
+    # EXTENSIONS_SUBDIR_DICT = {
+    #     "builtin": [("numbers", "arithmetic"), ("numbers", "numeric"), ("drawing", "graphics")],
+    # }
+    # EXTENSIONS.append(
+    #     Extension(
+    #         "mathics.%s.%s.%s" % (parent, module[0], module[1]), ["mathics/%s/%s/%s.py" % (parent, module[0], module[1])]
+    #     )
+    #     for parent, modules in EXTENSIONS_SUBDIR_DICT.items()
+    #     for module in modules
+    # )
     CMDCLASS = {"build_ext": build_ext}
     INSTALL_REQUIRES += ["cython>=0.15.1"]
 
 # General Requirements
 INSTALL_REQUIRES += [
-    "sympy>=1.6, < 1.7",
-    "django >= 1.8, < 1.12",
-    "mpmath>=1.1.0",
+    "Mathics_Scanner>=1.2.1,<1.3.0",
+    "sympy>=1.8, <= 1.9dev",
+    "mpmath>=1.2.0",
     "numpy",
-    "palettable", # For bar charts, and portable, no-proprietary color palletes
+    "palettable",
     "pint",
-    "pydot", # For graphs
     "python-dateutil",
-    "colorama",
+    "llvmlite",
+    "requests",
 ]
-
-if not ((not is_PyPy and sys.version_info >= (3, 8)) or (is_PyPy and sys.version_info >= (3, 6))):
-    INSTALL_REQUIRES.append("llvmlite")
 
 
 def subdirs(root, file="*.*", depth=10):
@@ -86,87 +121,8 @@ def subdirs(root, file="*.*", depth=10):
         yield root + "*/" * k + file
 
 
-class initialize(Command):
-    """
-    Manually create the Django database used by the web notebook
-    """
-
-    description = "manually create the Django database used by the web notebook"
-    user_options = []  # distutils complains if this is not here.
-
-    def __init__(self, *args):
-        self.args = args[0]  # so we can pass it to other classes
-        Command.__init__(self, *args)
-
-    def initialize_options(self):  # distutils wants this
-        pass
-
-    def finalize_options(self):  # this too
-        pass
-
-    def run(self):
-        import os
-        import subprocess
-
-        settings = {}
-        exec(
-            compile(open("mathics/settings.py").read(), "mathics/settings.py", "exec"),
-            settings,
-        )
-
-        database_file = settings["DATABASES"]["default"]["NAME"]
-        print("Creating data directory %s" % settings["DATA_DIR"])
-        if not os.path.exists(settings["DATA_DIR"]):
-            os.makedirs(settings["DATA_DIR"])
-        print("Creating database %s" % database_file)
-        try:
-            subprocess.check_call(
-                [sys.executable, "mathics/manage.py", "migrate", "--noinput"]
-            )
-            print("")
-            print("Database created successfully.")
-        except subprocess.CalledProcessError:
-            print("Error: failed to create database")
-            sys.exit(1)
-
-
-class test(Command):
-    """
-    Run the unittests
-    """
-
-    description = "run the unittests"
-    user_options = []
-
-    def __init__(self, *args):
-        self.args = args[0]  # so we can pass it to other classes
-        Command.__init__(self, *args)
-
-    def initialize_options(self):  # distutils wants this
-        pass
-
-    def finalize_options(self):  # this too
-        pass
-
-    def run(self):
-        import unittest
-
-        test_loader = unittest.defaultTestLoader
-        test_runner = unittest.TextTestRunner(verbosity=3)
-        test_suite = test_loader.discover("test/")
-        test_result = test_runner.run(test_suite)
-
-        if not test_result.wasSuccessful():
-            sys.exit(1)
-
-
-CMDCLASS["initialize"] = initialize
-CMDCLASS["test"] = test
-
-mathjax_files = list(subdirs("media/js/mathjax/"))
-
 setup(
-    name="Mathics",
+    name="Mathics3",
     cmdclass=CMDCLASS,
     ext_modules=EXTENSIONS,
     version=__version__,
@@ -176,72 +132,74 @@ setup(
         "mathics.core",
         "mathics.core.parser",
         "mathics.builtin",
-        "mathics.builtin.pymimesniffer",
-        "mathics.builtin.numpy_utils",
-        "mathics.builtin.pympler",
+        "mathics.builtin.arithfns",
+        "mathics.builtin.box",
+        "mathics.builtin.colors",
         "mathics.builtin.compile",
+        "mathics.builtin.distance",
+        "mathics.builtin.drawing",
+        "mathics.builtin.list",
+        "mathics.builtin.fileformats",
+        "mathics.builtin.files_io",
+        "mathics.builtin.intfns",
+        "mathics.builtin.moments",
+        "mathics.builtin.numbers",
+        "mathics.builtin.numpy_utils",
+        "mathics.builtin.pymimesniffer",
+        "mathics.builtin.pympler",
+        "mathics.builtin.specialfns",
+        "mathics.builtin.string",
         "mathics.doc",
-        "mathics.web",
-        "mathics.web.templatetags",
-        "mathics.web.migrations",
-        "pymathics.testpymathicsmodule"
+        "mathics.format",
     ],
     install_requires=INSTALL_REQUIRES,
+    extras_require=EXTRAS_REQUIRE,
     dependency_links=DEPENDENCY_LINKS,
     package_data={
         "mathics": [
             "data/*.csv",
+            "data/*.yml",
+            "data/*.yaml",
             "data/ExampleData/*",
+            "doc/xml/data",
+            "doc/tex/data",
+            "autoload/*.m",
+            "autoload-cli/*.m",
             "autoload/formats/*/Import.m",
             "autoload/formats/*/Export.m",
             "packages/*/*.m",
             "packages/*/Kernel/init.m",
         ],
         "mathics.doc": ["documentation/*.mdoc", "xml/data"],
-        "mathics.web": [
-            "media/css/*.css",
-            "media/img/*.*",
-            "media/fonts/*",
-            "media/img/favicons/*",
-            "media/js/innerdom/*.js",
-            "media/js/prototype/*.js",
-            "media/js/scriptaculous/*.js",
-            "media/js/three/Three.js",
-            "media/js/three/Detector.js",
-            "media/js/*.js",
-            "templates/*.html",
-            "templates/doc/*.html",
-        ]
-        + mathjax_files,
         "mathics.builtin.pymimesniffer": ["mimetypes.xml"],
         "pymathics": ["doc/documentation/*.mdoc", "doc/xml/data"],
     },
     entry_points={
         "console_scripts": [
             "mathics = mathics.main:main",
-            "mathicsserver = mathics.server:main",
-            "mathicsscript = mathics.script:main",
         ],
     },
+    long_description=long_description,
+    long_description_content_type="text/x-rst",
     # don't pack Mathics in egg because of media files, etc.
     zip_safe=False,
     # metadata for upload to PyPI
-    author="Angus Griffith",
-    author_email="mathics@angusgriffith.com",
+    maintainer="Mathics Group",
+    maintainer_email="mathic-devel@googlegroups.com",
     description="A general-purpose computer algebra system.",
     license="GPL",
-    url="https://mathics.github.io/",
-    download_url="https://github.com/mathics/Mathics/tarball/v1.1dev",
+    url="https://mathics.org/",
+    download_url="https://github.com/mathics/Mathics/releases",
     keywords=["Mathematica", "Wolfram", "Interpreter", "Shell", "Math", "CAS"],
     classifiers=[
         "Intended Audience :: Developers",
         "Intended Audience :: Science/Research",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Programming Language :: Python",
-
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: Implementation :: CPython",
         "Programming Language :: Python :: Implementation :: PyPy",
         "Topic :: Scientific/Engineering",

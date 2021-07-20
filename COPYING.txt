@@ -32,10 +32,9 @@ Three.js                           MIT
 pymimemagic                        BSD 3-Clause
 SciPy                              BSD 3-Clause
  
- 
 CONTACT INFO:
      Jan Poeschko; jan@poeschko.com; 
-     http://www.mathics.org
+     https://mathics.org/
 
 =========================================================================
  
